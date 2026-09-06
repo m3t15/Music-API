@@ -1,0 +1,12 @@
+# env:
+.env
+
+# configs:
+config.yml
+
+# personal notes and stuff
+notes.md
+*.sql
+
+# data
+data/

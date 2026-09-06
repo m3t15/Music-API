@@ -1,0 +1,10 @@
+directories:
+   # format as either complete path to the directory containing the DB/Music OR the relative path to the golang script
+   databasedir: ./data/database
+   musicdir: ./data/music
+loglevel:
+   # low, medium, or high 
+   databaselevel: high
+   # info, warn, error, or fatal 
+   filelevel: info
+   
