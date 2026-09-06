@@ -1,8 +1,8 @@
 package music
 
 import (
-	"Euterpe/internal/logging"
-	"Euterpe/internal/shared"
+	"JMAPI/internal/logging"
+	"JMAPI/internal/shared"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bogem/id3v2/v2"
+	"github.com/dhowden/tag"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -34,7 +35,7 @@ func musicDirContent(musicDir string) ([]string, []string, error) {
 	for _, item := range entries {
 		fullPath := filepath.Join(musicDir, item.Name())
 
-		// recursive directory searching
+		// recursive dir search stuff
 		if item.IsDir() {
 			subMusic, subFailed, err := musicDirContent(fullPath)
 			if err != nil {
@@ -46,19 +47,17 @@ func musicDirContent(musicDir string) ([]string, []string, error) {
 			continue
 		}
 
-		// find MIME type based on the file content
+		// find MIME type via file content
 		mtype, err := mimetype.DetectFile(fullPath)
 		if err != nil {
 			failedFiles = append(failedFiles, fullPath)
 			continue
 		}
 
-		// check if MIME is audio file
 		if supportedAudioTypes[mtype.String()] {
 			musicFiles = append(musicFiles, fullPath)
 		}
 	}
-	// log any failures
 	for _, item := range failedFiles {
 		message := fmt.Sprintf("Failed to ingest file: %s", item)
 		logging.Logger("warn", message, shared.GetTime())
@@ -85,55 +84,77 @@ func IngestMusicDir(musicDir string) ([]shared.MusicMetaData, error) {
 
 		// Convert map[string]any to shared.MusicMetaData
 		metaData := mapToMusicMetaData(musicData, item)
+
 		songList = append(songList, metaData)
 	}
 
 	return songList, nil
 }
 
+// get music metadata w/ fallback
 func extractMetaData(item string) (map[string]any, error) {
 	musicData := make(map[string]any)
+	musicData["filepath"] = item
 
-	// read id3 metadata
-	tag, err := id3v2.Open(item, id3v2.Options{Parse: true})
+	// try for quick and easy parsing (can grab duration and stuff on standard MP3s)
+	id3tag, err := id3v2.Open(item, id3v2.Options{Parse: true})
+
+	// if the file has some sort of issue being read, or if it is not an MP3 fallback to using dhowden/tag
 	if err != nil {
-		return musicData, fmt.Errorf("id3 error: %w", err)
-	}
-	defer tag.Close()
+		f, openErr := os.Open(item)
+		if openErr != nil {
+			return musicData, fmt.Errorf("failed to open file for fallback: %w", openErr)
+		}
+		defer f.Close()
 
-	title := tag.Title()
-	album := tag.Album()
-	artist := tag.Artist()
-	trackStr := tag.GetTextFrame("TRCK").Text // track number (TRCK) idk why it is like this but it is
-	year := tag.Year()
-	genre := tag.Genre()
-	var formattedTime string
-	if tlen := tag.GetTextFrame("TLEN").Text; tlen != "" {
+		m, tagErr := tag.ReadFrom(f)
+		if tagErr != nil {
+			return musicData, fmt.Errorf("native parse and fallback tag parse failed: %w", tagErr)
+		}
+
+		if m.Title() != "" {
+			musicData["title"] = m.Title()
+		}
+		if m.Album() != "" {
+			musicData["album"] = m.Album()
+		}
+		if m.Artist() != "" {
+			musicData["artist"] = m.Artist()
+		}
+		if m.Genre() != "" {
+			musicData["genre"] = m.Genre()
+		}
+		musicData["year"] = m.Year()
+
+		trackNum, _ := m.Track()
+		musicData["track"] = trackNum
+
+		return musicData, nil
+	}
+	defer id3tag.Close()
+
+	musicData["title"] = id3tag.Title()
+	musicData["album"] = id3tag.Album()
+	musicData["artist"] = id3tag.Artist()
+	musicData["genre"] = id3tag.Genre()
+	musicData["year"] = id3tag.Year()
+
+	trackStr := id3tag.GetTextFrame("TRCK").Text
+	re := regexp.MustCompile(`^\d+`)
+	if match := re.FindString(trackStr); match != "" {
+		if i, err := strconv.Atoi(match); err == nil {
+			musicData["track"] = i
+		}
+	}
+
+	if tlen := id3tag.GetTextFrame("TLEN").Text; tlen != "" {
 		if ms, err := strconv.Atoi(tlen); err == nil {
 			duration := time.Duration(ms) * time.Millisecond
 			minutes := int(duration.Minutes())
 			seconds := int(duration.Seconds()) - (minutes * 60)
-			formattedTime = fmt.Sprintf("%02d:%02d", minutes, seconds)
+			musicData["time"] = fmt.Sprintf("%02d:%02d", minutes, seconds)
 		}
 	}
-	// get track number (using regex)
-	re := regexp.MustCompile(`^\d+`)
-	match := re.FindString(trackStr)
-	trackNum := 0
-	if match != "" {
-		if i, err := strconv.Atoi(match); err == nil {
-			trackNum = i
-		}
-	}
-
-	// populate musicData map
-	musicData["title"] = title
-	musicData["album"] = album
-	musicData["artist"] = artist
-	musicData["track"] = trackNum
-	musicData["year"] = year
-	musicData["genre"] = genre
-	musicData["time"] = formattedTime
 
 	return musicData, nil
 }

@@ -8,6 +8,7 @@ const (
 
 // Shared Music MetaData
 type MusicMetaData struct {
+	SongID   *int   `json:"songid,omitempty"`
 	Title    string `json:"title"`
 	Album    string `json:"album"`
 	Track    int    `json:"track"`
@@ -22,4 +23,13 @@ func GetTime() string {
 	RFC1123Z := "Mon, 02 Jan 2006 15:04:05 -0700"
 	timeNow := time.Now().Format(RFC1123Z)
 	return timeNow
+}
+
+// Struct for paging data
+type PagedData struct {
+	Data       []MusicMetaData `json:"musicData"`
+	TotalCount int             `json:"totalCount"`
+	TotalPages int             `json:"totalPages"`
+	Page       int             `json:"page"`
+	PageSize   int             `json:"pageSize"`
 }

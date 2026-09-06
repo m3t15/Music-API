@@ -47,21 +47,14 @@ func createMusicDB(musicdbdir string, musicdbPath string) error {
 	createSongsTable := `CREATE TABLE IF NOT EXISTS "songdata" (
     "song_id" INTEGER PRIMARY KEY AUTOINCREMENT, 
     "title" TEXT NOT NULL, 
-    "album_id" INTEGER NULL,
+    "album_id" INTEGER NULL, -- NULL allowed (in case of singles)
+    "artist_id" INTEGER NOT NULL, 
     "track_number" INTEGER NULL,
     "length" TEXT NOT NULL,
     "comment" TEXT NULL, 
     "filepath" TEXT NOT NULL UNIQUE,
+    FOREIGN KEY ("artist_id") REFERENCES "artistdata"("artist_id") ON DELETE CASCADE,
     FOREIGN KEY ("album_id") REFERENCES "albumdata"("album_id") ON DELETE SET NULL
-	);`
-
-	createJuncSongArtist := `CREATE TABLE IF NOT EXISTS "song_artists" (
-    "song_id" INTEGER NOT NULL,
-    "artist_id" INTEGER NOT NULL,
-    "role" TEXT DEFAULT 'Main',
-    PRIMARY KEY ("song_id", "artist_id"),
-    FOREIGN KEY ("song_id") REFERENCES "songdata"("song_id") ON DELETE CASCADE,
-    FOREIGN KEY ("artist_id") REFERENCES "artistdata"("artist_id") ON DELETE CASCADE
 	);`
 
 	createJuncSongGenre := `
@@ -73,7 +66,7 @@ func createMusicDB(musicdbdir string, musicdbPath string) error {
     FOREIGN KEY ("genre_id") REFERENCES "genredata"("genre_id") ON DELETE CASCADE
 	);`
 
-	tableCreateArr := []string{createArtistTable, createGenreTable, createAlbumTable, createSongsTable, createJuncSongArtist, createJuncSongGenre}
+	tableCreateArr := []string{createArtistTable, createGenreTable, createAlbumTable, createSongsTable, createJuncSongGenre}
 	for i := 0; i < len(tableCreateArr); i++ {
 		_, err = db.Exec(tableCreateArr[i])
 		if err != nil {

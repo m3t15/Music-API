@@ -1,1 +1,2 @@
-Euterpe Music Player (EMP)
+Music API
+Active Development

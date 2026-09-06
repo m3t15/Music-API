@@ -2,7 +2,6 @@ package logging
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 )
 
@@ -10,13 +9,6 @@ type logData struct {
 	level     string // level for file (info, warn, error, fatal)
 	message   string // log message
 	timestamp string // datetime of the log
-}
-
-// Super rudimentary health status checker
-// TO DO: Implement checking if database is connected
-func HealthData(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
 }
 
 // Super rudimentary logging (in this func I want to add further normalizaiton for some of the variables/add more data idk yet)

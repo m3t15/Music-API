@@ -3,8 +3,8 @@ directories:
    databasedir: ./data/database
    musicdir: ./data/music
 loglevel:
-   # low, medium, or high 
+   # low, medium, or high (for logging to db) 
    databaselevel: high
-   # info, warn, error, or fatal 
+   # info, warn, error, or fatal (for logging to file)
    filelevel: info
    

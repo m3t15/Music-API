@@ -18,12 +18,13 @@ type Loglevel struct {
 	Filelevel     string `yaml:"filelevel"`
 }
 
-// Root struct (top level YAML stuff)
+// root struct (top level YAML stuff)
 type ConfigData struct {
 	Directories Directories `yaml:"directories"`
 	Loglevel    Loglevel    `yaml:"loglevel"`
 }
 
+// pretty simple config loader
 func LoadConfig(configPath string) (ConfigData, error) {
 	var configData ConfigData
 
@@ -32,7 +33,7 @@ func LoadConfig(configPath string) (ConfigData, error) {
 		return configData, err
 	}
 
-	// Unmarshal yaml to configData ("Root' ConfigData struct)
+	// Unmarshal yaml to configData
 	if err := yaml.Unmarshal(configRaw, &configData); err != nil {
 		return configData, err
 	}
