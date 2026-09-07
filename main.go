@@ -14,7 +14,7 @@ import (
 	"strconv"
 )
 
-// getPagination defaults page and pageSize from the URL and enforces a max size
+// defaults page and pageSize and enforces a max size
 func getPagination(r *http.Request, maxPageSize int) (int, int) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
@@ -32,7 +32,7 @@ func getPagination(r *http.Request, maxPageSize int) (int, int) {
 	return page, pageSize
 }
 
-// respondJSON encodes any struct/data to JSON
+// encodes any data to JSON
 func respondJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -41,7 +41,7 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
-// respondError standardizes how API errors are returned and logged
+// standardize how API errors are returned and logged
 func respondError(w http.ResponseWriter, status int, message string, err error) {
 	logging.Logger("error", fmt.Sprintf("%s: %v", message, err), shared.GetTime())
 	respondJSON(w, status, map[string]string{"error": message})

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// MusicFilter holds your optional search parameters
+// MusicFilter holds optional search parameters
 type MusicFilter struct {
 	Album  string
 	Artist string
