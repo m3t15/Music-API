@@ -43,12 +43,12 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 
 // respondError standardizes how API errors are returned and logged
 func respondError(w http.ResponseWriter, status int, message string, err error) {
-	// FIXED: Used fmt.Sprintf instead of fmt.Sprintln for formatting %v
 	logging.Logger("error", fmt.Sprintf("%s: %v", message, err), shared.GetTime())
 	respondJSON(w, status, map[string]string{"error": message})
 }
 
 func main() {
+	// I'm leaving this in, it was the first line I wrote for this before I had any idea what kinda music thing I was making therefore it stays
 	fmt.Println("hiii :3")
 
 	config, err := config.LoadConfig(shared.ConfigFilePath)
@@ -56,7 +56,6 @@ func main() {
 		logging.Logger("fatal", fmt.Sprintln(err), shared.GetTime())
 		os.Exit(1)
 	}
-	fmt.Println(config)
 
 	// Connect to db
 	db, err := database.ConnectMusicDB(config.Directories.Databasedir)
@@ -64,7 +63,7 @@ func main() {
 		logging.Logger("fatal", fmt.Sprintf("Unable to connect to DB: %v", err), shared.GetTime())
 		os.Exit(1)
 	}
-	// FIXED: Ensure db is closed when main exits (e.g. during unexpected panics)
+	// validate that the db is closed when exiting the program
 	defer db.Close()
 
 	// Load and check for new songs on startup
@@ -117,6 +116,36 @@ func main() {
 
 	// TO DO: PATCH to update stuffs
 	// http.HandleFunc("/v1/music/update", func(w http.ResponseWriter, r *http.Request) { ... })
+	// http.HandleFunc("/v1/music/update", func(w http.ResponseWriter, r *http.Request) {
+	// 	trackNum, err := strconv.Atoi((URL.Query().Get("updatetrack")))
+	// 	if err != nil {
+	// 		respondError(w, http.StatusInternalServerError, "Failed to fetch music", err)
+	// 		return
+	// 	}
+	// 	songid, err := strconv.Atoi(r.URL.Query().Get("songid"))
+	// 	if err != nil {
+	// 		respondError(w, http.StatusInternalServerError, "Failed to fetch music", err)
+	// 		return
+	// 	}
+
+	// 	filter := shared.MusicMetaData{
+	// 		SongID: songid,
+	// 		Title:  r.URL.Query().Get("updatetitle"),
+	// 		Album:  r.URL.Query().Get("updatealbum"),
+	// 		Track:  trackNum,
+	// 		Artist: r.URL.Query().Get("updateartist"),
+	// 		Genres: r.URL.Query().Get("updategenres"),
+	// 		Time:   r.URL.Query().Get("updatetime"),
+	// 	}
+
+	// 	// pagedData, err := database.DBUpdateMusic(db, filter)
+	// 	// if err != nil {
+	// 	// 	respondError(w, http.StatusInternalServerError, "Failed to fetch music", err)
+	// 	// 	return
+	// 	// }
+
+	// 	respondJSON(w, http.StatusOK, pagedData)
+	// })
 
 	log.Println("Server running at: http://localhost:8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
