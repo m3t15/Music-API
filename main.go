@@ -14,22 +14,25 @@ import (
 	"strconv"
 )
 
-// defaults page and pageSize from the URL
-func getPagination(r *http.Request) (int, int) {
+// getPagination defaults page and pageSize from the URL and enforces a max size
+func getPagination(r *http.Request, maxPageSize int) (int, int) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
 	}
 
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
-	if pageSize < 1 {
+	switch {
+	case pageSize < 1:
 		pageSize = 10
+	case pageSize > maxPageSize:
+		pageSize = maxPageSize
 	}
 
 	return page, pageSize
 }
 
-// encodes any struct/data to JSON
+// respondJSON encodes any struct/data to JSON
 func respondJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -38,14 +41,14 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
-// standard for how how API errors are returned to the client (should always be the same, and logging for it)
+// respondError standardizes how API errors are returned and logged
 func respondError(w http.ResponseWriter, status int, message string, err error) {
-	logging.Logger("error", fmt.Sprintln(message+": %v", err), shared.GetTime())
+	// FIXED: Used fmt.Sprintf instead of fmt.Sprintln for formatting %v
+	logging.Logger("error", fmt.Sprintf("%s: %v", message, err), shared.GetTime())
 	respondJSON(w, status, map[string]string{"error": message})
 }
 
 func main() {
-	// load config and initialize variables
 	fmt.Println("hiii :3")
 
 	config, err := config.LoadConfig(shared.ConfigFilePath)
@@ -55,17 +58,16 @@ func main() {
 	}
 	fmt.Println(config)
 
-	// connect to db and init db as needed
+	// Connect to db
 	db, err := database.ConnectMusicDB(config.Directories.Databasedir)
-	if db == nil {
-		if err != nil {
-			logging.Logger("fatal", "Unable to connect to DB", shared.GetTime())
-			os.Exit(1)
-		}
-	} else if err != nil {
-		logging.Logger("error", fmt.Sprintln(err), shared.GetTime())
+	if err != nil || db == nil {
+		logging.Logger("fatal", fmt.Sprintf("Unable to connect to DB: %v", err), shared.GetTime())
+		os.Exit(1)
 	}
-	// load and check for new songs on startup
+	// FIXED: Ensure db is closed when main exits (e.g. during unexpected panics)
+	defer db.Close()
+
+	// Load and check for new songs on startup
 	musicData, err := music.IngestMusicDir(config.Directories.Musicdir)
 	if err != nil {
 		logging.Logger("error", fmt.Sprintln(err), shared.GetTime())
@@ -75,37 +77,34 @@ func main() {
 	if err != nil {
 		logging.Logger("error", fmt.Sprintln(err), shared.GetTime())
 	}
+
 	// GET REQUESTS
 
-	// Super rudimentary health status checker
+	// simple health checker
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		// Ping the database first
-		err := db.Ping()
-		if err != nil {
+		if err := db.Ping(); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Unable to ping DB..."))
 			return
 		}
-
-		// send a single OK status and message
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
-
 	})
 
-	// NEED TO FIGURE OUT HOW TO GET A WAY TO QUERY BY ALBUM AND ARTIST ETC!!!
+	// query DB for music
+	// example: /v1/music?album=ALBUMNAME&artist=FIRST+LAST&page=1&pageSize=50
+	http.HandleFunc("/v1/music", func(w http.ResponseWriter, r *http.Request) {
+		page, pageSize := getPagination(r, 100)
 
-	// GET /v1/music/get-all?page=X&pageSize=Y (max page size of 100)
-	// localhost example: http://localhost:8080/v1/music/get-all?page=1&pageSize=30
-	http.HandleFunc("/v1/music/get-all", func(w http.ResponseWriter, r *http.Request) {
-		pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
-		// enforce max page size
-		if pageSize > 100 {
-			pageSize = 100
+		// filters from the URL query to struct
+		filter := database.MusicFilter{
+			Album:  r.URL.Query().Get("album"),
+			Artist: r.URL.Query().Get("artist"),
+			Genre:  r.URL.Query().Get("genre"),
+			Title:  r.URL.Query().Get("song"),
 		}
-		page, pageSize := getPagination(r)
 
-		pagedData, err := database.DBQueryPaginatedMusic(db, page, pageSize)
+		pagedData, err := database.DBQueryPaginatedMusic(db, page, pageSize, filter)
 		if err != nil {
 			respondError(w, http.StatusInternalServerError, "Failed to fetch music", err)
 			return
@@ -113,25 +112,15 @@ func main() {
 
 		respondJSON(w, http.StatusOK, pagedData)
 	})
-	// // TO DO: GET request for music by ALBUM
-	// http.HandleFunc("/v1/music/album", addPerson)
-	// // TO DO: GET request for music by ARTIST
-	// http.HandleFunc("/v1/music/artist", getPerson)
-	// // TO DO: GET request for music by SONG/TITLE
-	// http.HandleFunc("/v1/music/song", getAllPersons)
-	// // TO DO: GET request for music by GENRE
-	// http.HandleFunc("/v1/music/genre", updatePerson)
 
 	// PATCH REQUESTS
 
-	// // TO DO: PATCH request to UPDATE/COgRRECT MetaData
-	// http.HandleFunc("/v1/", deletePerson)
+	// TO DO: PATCH to update stuffs
+	// http.HandleFunc("/v1/music/update", func(w http.ResponseWriter, r *http.Request) { ... })
+
 	log.Println("Server running at: http://localhost:8080")
-	err = http.ListenAndServe(":8080", nil)
-	if err != nil {
+	if err := http.ListenAndServe(":8080", nil); err != nil {
 		logging.Logger("fatal", fmt.Sprintln(err), shared.GetTime())
-		db.Close()
 		os.Exit(1)
 	}
-	db.Close()
 }
